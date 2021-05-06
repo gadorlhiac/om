@@ -55,3 +55,32 @@ def epixka2m_detector_data(event: Dict[str, Any]) -> numpy.ndarray:
     epixka2m_reshaped: numpy.ndarray = epixka2m_psana.reshape(16 * 352, 384)
 
     return epixka2m_reshaped
+
+
+def epixka_detector_data(event: Dict[str, Any]) -> numpy.ndarray:
+    """
+    Retrieves a Epix10KA detector data frame from psana.
+
+    This function retrieves a single EPIX10KA detector frame from psana. It returns the
+    frame as a 2D array storing pixel data.
+
+    Arguments:
+
+        event: A dictionary storing the event data.
+
+    Returns:
+
+        One frame of detector data.
+    """
+    epixka_psana: numpy.ndarray = event["additional_info"]["psana_detector_interface"][
+        "detector_data"
+    ].calib(event["data"])
+    if epixka_psana is None:
+        raise exceptions.OmDataExtractionError(
+            "Could not retrieve detector data from psana."
+        )
+
+    # Rearranges the data into 'slab' format.
+    epixka_reshaped: numpy.ndarray = epixka_psana.reshape(2 * 352, 2 * 384)
+
+    return epixka_reshaped
