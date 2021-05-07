@@ -43,6 +43,9 @@ except ImportError:
     )
 
 
+# TODO: Fix documentation for this file
+
+
 class CrystallographyMonitor(process_layer_base.OmMonitor):
     """
     See documentation for the `__init__` function.
@@ -279,6 +282,100 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
             parameter_type=int,
         )
 
+        self._droplet_detection_enabled: Union[
+            bool, None
+        ] = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="droplet_detection_enabled",
+            parameter_type=bool,
+        )
+        dd_oil_peak_min_i: int = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="oil_peak_min_i",
+            parameter_type=int,
+            required=True,
+        )
+        dd_oil_peak_max_i: int = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="oil_peak_max_i",
+            parameter_type=int,
+            required=True,
+        )
+        dd_water_peak_min_i: int = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="water_peak_min_i",
+            parameter_type=int,
+            required=True,
+        )
+        dd_water_peak_max_i: int = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="water_peak_max_i",
+            parameter_type=int,
+            required=True,
+        )
+        dd_threshold: float = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="threshold_for_droplet_hit",
+            parameter_type=float,
+            required=True,
+        )
+        dd_oil_profile_fname: str = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="oil_profile_filename",
+            parameter_type=str,
+            required=True,
+        )
+        dd_water_profile_fname: str = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="water_profile_filename",
+            parameter_type=str,
+            required=True,
+        )
+
+        if dd_oil_profile_fname is not None:
+            try:
+                dd_oil_profile: numpy.ndarray = numpy.loadtxt(dd_oil_profile_fname)
+            except (IOError, OSError, KeyError) as exc:
+                # TODO: type this
+                exc_type, exc_value = sys.exc_info()[:2]
+                raise RuntimeError(
+                    "The following error occurred while reading the {0} oil profile "
+                    " file: {1}: {2}".format(
+                        dd_oil_profile_fname,
+                        exc_type.__name__,  # type: ignore
+                        exc_value,
+                    )
+                ) from exc
+
+        if dd_water_profile_fname is not None:
+            try:
+                dd_water_profile: numpy.ndarray = numpy.loadtxt(dd_water_profile_fname)
+            except (IOError, OSError, KeyError) as exc:
+                # TODO: type this
+                exc_type, exc_value = sys.exc_info()[:2]
+                raise RuntimeError(
+                    "The following error occurred while reading the {0} water profile "
+                    "file: {1}: {2}".format(
+                        dd_water_profile_fname,
+                        exc_type.__name__,  # type: ignore
+                        exc_value,
+                    )
+                ) from exc
+
+        self._droplet_detection: cryst_algs.DropletDetection = (
+            cryst_algs.DropletDetection(
+                oil_peak_min_i=dd_oil_peak_min_i,
+                oil_peak_max_i=dd_oil_peak_max_i,
+                water_peak_min_i=dd_water_peak_min_i,
+                water_peak_max_i=dd_water_peak_max_i,
+                oil_profile=dd_oil_profile,
+                water_profile=dd_water_profile,
+                threshold=dd_threshold,
+                radius_pixel_map=self._pixelmaps["radius"],
+                bad_pixel_map=bad_pixel_map,
+            )
+        )
+
         print("Processing node {0} starting.".format(node_rank))
         sys.stdout.flush()
 
@@ -341,6 +438,13 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
             tuple(self._geometry["panels"].keys())[0]
         ]["res"]
 
+        self._save_radials: bool = self._monitor_params.get_param(
+            group="droplet_detection",
+            parameter="save_radials",
+            parameter_type=bool,
+            required=True,
+        )
+
         self._running_average_window_size: int = self._monitor_params.get_param(
             group="crystallography",
             parameter="running_average_window_size",
@@ -358,6 +462,23 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
         self._hit_rate_history: Deque[float] = collections.deque(
             5000 * [0.0], maxlen=5000
         )
+
+        # droplet hitrate
+        self._droplet_hit_rate_running_window: Deque[float] = collections.deque(
+            [0.0] * self._running_average_window_size,
+            maxlen=self._running_average_window_size,
+        )
+        self._avg_droplet_hit_rate: int = 0
+        self._droplet_hit_rate_timestamp_history: Deque[float] = collections.deque(
+            5000 * [0.0], maxlen=5000
+        )
+        self._droplet_hit_rate_history: Deque[float] = collections.deque(
+            5000 * [0.0], maxlen=5000
+        )
+
+        self._radials: List[numpy.ndarray] = []
+        self._frame_is_droplet: List[bool] = []
+        self._frame_is_crystal: List[bool] = []
 
         y_minimum: int = (
             2
@@ -505,6 +626,19 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
                     processed_data["detector_data"] = corrected_detector_data
                     self._non_hit_frame_sending_counter = 0
 
+        if self._droplet_detection_enabled:
+            # Solution/radial profile-based droplet hit finding
+            radial: numpy.ndarray = self._droplet_detection.radial_profile(
+                corrected_detector_data
+            )
+            frame_is_droplet: bool = self._droplet_detection.is_droplet(radial)
+        else:
+            radial = numpy.zeros(1)
+            frame_is_droplet = False
+
+        processed_data["radial"] = radial
+        processed_data["frame_is_droplet"] = frame_is_droplet
+
         return (processed_data, node_rank)
 
     def collect_data(
@@ -563,6 +697,20 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
         self._hit_rate_timestamp_history.append(received_data["timestamp"])
         self._hit_rate_history.append(avg_hit_rate * 100.0)
 
+        self._droplet_hit_rate_running_window.append(
+            float(received_data["frame_is_droplet"])
+        )
+        avg_droplet_hit_rate: float = (
+            sum(self._droplet_hit_rate_running_window)
+            / self._running_average_window_size
+        )
+        self._droplet_hit_rate_timestamp_history.append(received_data["timestamp"])
+        self._droplet_hit_rate_history.append(avg_droplet_hit_rate * 100.0)
+
+        self._radials.append(received_data["radial"])
+        self._frame_is_droplet.append(received_data["frame_is_droplet"])
+        self._frame_is_crystal.append(received_data["frame_is_hit"])
+
         peak_list_x_in_frame: List[float] = []
         peak_list_y_in_frame: List[float] = []
         peak_fs: float
@@ -590,6 +738,10 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
                     "timestamp": received_data["timestamp"],
                     "hit_rate_timestamp_history": self._hit_rate_timestamp_history,
                     "hit_rate_history": self._hit_rate_history,
+                    "droplet_hit_rate_timestamp_history": (
+                        self._droplet_hit_rate_timestamp_history
+                    ),
+                    "droplet_hit_rate_history": self._droplet_hit_rate_history,
                     "virtual_powder_plot": self._virt_powd_plot_img,
                     "beam_energy": received_data["beam_energy"],
                     "detector_distance": received_data["detector_distance"],
@@ -692,6 +844,14 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
             node_pool_size: The total number of nodes in the OM pool, including all the
                 processing nodes and the collecting node.
         """
+        if self._save_radials:
+            print("Saving radial data to the radials.h5 file.")
+            radials_file = h5py.File("radials.h5", "w")
+            radials_file.create_dataset("radials", data=self._radials)
+            radials_file.create_dataset("frame_is_droplet", data=self._frame_is_droplet)
+            radials_file.create_dataset("frame_is_crystal", data=self._frame_is_crystal)
+            radials_file.close()
+
         print(
             "Processing finished. OM has processed {0} events in total.".format(
                 self._num_events
