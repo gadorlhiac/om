@@ -21,6 +21,9 @@ OM's GUI for Crystallography.
 This module contains the implementation of a graphical interface that displays reduced
 and aggregated data in crystallography experiments.
 """
+
+# TODO: Documentation of this whole file.
+
 import signal
 import sys
 import time
@@ -146,6 +149,10 @@ class CrystallographyGui(graph_interfaces_base.OmGui):
         )
         self._resolution_rings_check_box.stateChanged.connect(
             self._update_resolution_rings_status
+        )
+
+        self._droplet_hit_rate_plot: Any = self._hit_rate_plot_widget.plot(
+            tuple(range(-5000, 0)), [0.0] * 5000, pen=pyqtgraph.mkPen("c")
         )
 
         horizontal_layout: Any = QtGui.QHBoxLayout()
@@ -322,6 +329,9 @@ class CrystallographyGui(graph_interfaces_base.OmGui):
 
         self._hit_rate_plot.setData(
             tuple(range(-5000, 0)), local_data["hit_rate_history"]
+        )
+        self._droplet_hit_rate_plot.setData(
+            tuple(range(-5000, 0)), local_data["droplet_hit_rate_history"]
         )
 
         QtGui.QApplication.processEvents()
