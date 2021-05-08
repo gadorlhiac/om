@@ -292,7 +292,7 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
         if self._droplet_detection_enabled is None:
             self._droplet_detection_enabled = False
 
-        if droplet_detection_enabled is True:
+        if self._droplet_detection_enabled is True:
             dd_oil_peak_min_i: int = self._monitor_params.get_param(
                 group="droplet_detection",
                 parameter="oil_peak_min_i",
@@ -327,13 +327,11 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
                 group="droplet_detection",
                 parameter="oil_profile_filename",
                 parameter_type=str,
-                required=True,
             )
             dd_water_profile_fname: str = self._monitor_params.get_param(
                 group="droplet_detection",
                 parameter="water_profile_filename",
                 parameter_type=str,
-                required=True,
             )
 
             if dd_oil_profile_fname is not None:
@@ -350,6 +348,8 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
                             exc_value,
                         )
                     ) from exc
+            else:
+                dd_oil_profile = None
 
             if dd_water_profile_fname is not None:
                 try:
@@ -365,6 +365,8 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
                             exc_value,
                         )
                     ) from exc
+            else:
+                dd_water_profile = None
 
             self._droplet_detection: cryst_algs.DropletDetection = (
                 cryst_algs.DropletDetection(
@@ -716,7 +718,7 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
         self._hit_rate_timestamp_history.append(received_data["timestamp"])
         self._hit_rate_history.append(avg_hit_rate * 100.0)
 
-         if self._droplet_detection_enabled:
+        if self._droplet_detection_enabled:
 
             self._droplet_hit_rate_running_window.append(
                 float(received_data["frame_is_droplet"])
@@ -752,23 +754,27 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
             self._virt_powd_plot_img[y_in_frame, x_in_frame] += peak_value
 
         if self._num_events % self._data_broadcast_interval == 0:
+            message={
+                "geometry_is_optimized": self._geometry_is_optimized,
+                "timestamp": received_data["timestamp"],
+                "hit_rate_timestamp_history": self._hit_rate_timestamp_history,
+                "hit_rate_history": self._hit_rate_history,
+                "virtual_powder_plot": self._virt_powd_plot_img,
+                "beam_energy": received_data["beam_energy"],
+                "detector_distance": received_data["detector_distance"],
+                "first_panel_coffset": self._first_panel_coffset,
+                "pixel_size": self._pixel_size,
+            }
+
+            if self._droplet_detection_enabled:
+                message[
+                    "droplet_hit_rate_timestamp_history"
+                ] = self._droplet_hit_rate_timestamp_history
+                message["droplet_hit_rate_history"] = self._droplet_hit_rate_history,
+
             self._data_broadcast_socket.send_data(
                 tag="view:omdata",
-                message={
-                    "geometry_is_optimized": self._geometry_is_optimized,
-                    "timestamp": received_data["timestamp"],
-                    "hit_rate_timestamp_history": self._hit_rate_timestamp_history,
-                    "hit_rate_history": self._hit_rate_history,
-                    "droplet_hit_rate_timestamp_history": (
-                        self._droplet_hit_rate_timestamp_history
-                    ),
-                    "droplet_hit_rate_history": self._droplet_hit_rate_history,
-                    "virtual_powder_plot": self._virt_powd_plot_img,
-                    "beam_energy": received_data["beam_energy"],
-                    "detector_distance": received_data["detector_distance"],
-                    "first_panel_coffset": self._first_panel_coffset,
-                    "pixel_size": self._pixel_size,
-                },
+                message=message
             )
 
             if "detector_data" in received_data:
