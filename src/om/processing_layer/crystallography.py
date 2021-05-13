@@ -619,6 +619,8 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
         processed_data["frame_is_hit"] = frame_is_hit
         processed_data["detector_distance"] = data["detector_distance"]
         processed_data["beam_energy"] = data["beam_energy"]
+        processed_data["event_id"] = data["event_id"]
+        processed_data["frame_id"] = data["frame_id"]
         processed_data["data_shape"] = data["detector_data"].shape
         if frame_is_hit:
             processed_data["peak_list"] = peak_list
@@ -704,6 +706,9 @@ class CrystallographyMonitor(process_layer_base.OmMonitor):
                         "peak_list": received_data["peak_list"],
                         "beam_energy": received_data["beam_energy"],
                         "detector_distance": received_data["detector_distance"],
+                        "event_id": received_data["event_id"],
+                        "frame_id": received_data["frame_id"],
+                        "timestamp": received_data["timestamp"],
                     },
                     use_bin_type=True,
                 )
