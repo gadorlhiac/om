@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License along with OM.
 # If not, see <http://www.gnu.org/licenses/>.
 #
-# Copyright 2020 SLAC National Accelerator Laboratory
+# Copyright 2020 -2021 SLAC National Accelerator Laboratory
 #
 # Based on OnDA - Copyright 2014-2019 Deutsches Elektronen-Synchrotron DESY,
 # a research centre of the Helmholtz Association.
@@ -59,7 +59,7 @@ version_fh = open("src/om/__init__.py", "r")
 version = version_fh.readlines()[-1].split("=")[1].strip().split('"')[1]
 version_fh.close()
 setup(
-    name="om",
+    name="ondamonitor",
     version=version,
     url="https://www.ondamonitor.com",
     license="GNU General Public License v3.0",
@@ -104,7 +104,9 @@ setup(
     ),
     install_requires=[
         "click",
+        "fabio",
         "h5py",
+        "msgpack",
         "mypy-extensions",
         "numpy",
         "pyyaml",
@@ -114,7 +116,7 @@ setup(
     ],
     extras_require={
         "qt": ["pyqt5", "pyqtgraph"],
-        "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"]
+        "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],
     },
     entry_points={
         "console_scripts": ["om_monitor.py=om.monitor:main"],

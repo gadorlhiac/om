@@ -1,12 +1,13 @@
-site_name: OnDA Monitor
+site_name: OnDA Monitor - v21.5.0
 site_dir: ../docs/html
 extra_css:
-  - extra.css
+  - assets/css/extra.css
 theme:
   name: material
   features:
     - navigation.top
   icon:
+    logo: material/alpha-o-box-outline
     repo: fontawesome/brands/github
 markdown_extensions:
   - admonition
@@ -90,3 +91,8 @@ nav:
         - zmq_gui: reference/om/utils/zmq_gui.md
         - zmq_monitor: reference/om/utils/zmq_monitor.md
       - monitor: reference/om/monitor.md
+  - Quick Links:
+    - OM's Configuration Parameters: parameters.md
+    - OM's Error Messages: errors.md
+    - Available Data Types For Each Data Event Handler: data.md
+    - Example Geometry Files: geometry.md   
