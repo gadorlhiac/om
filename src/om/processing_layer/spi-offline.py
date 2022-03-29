@@ -30,7 +30,8 @@ from numpy.typing import NDArray
 
 from om.algorithms import generic as gen_algs
 from om.processing_layer import base as pl_base
-from om.utils import parameters, zmq_monitor
+from om.utils import crystfel_geometry, hdf5_writers, parameters
+from om.utils.crystfel_geometry import TypeDetector
 
 
 class SpiProcessing(pl_base.OmProcessing):
@@ -105,26 +106,6 @@ class SpiProcessing(pl_base.OmProcessing):
             node_pool_size: The total number of nodes in the OM pool, including all the
                 processing nodes and the collecting node.
         """
-        self._running_average_window_size: int = self._monitor_params.get_parameter(
-            group="spi",
-            parameter="running_average_window_size",
-            parameter_type=int,
-            required=True,
-        )
-
-        self._hit_rate_running_window: Deque[float] = collections.deque(
-            [0.0] * self._running_average_window_size,
-            maxlen=self._running_average_window_size,
-        )
-        self._avg_hit_rate: int = 0
-        self._num_hits: int = 0
-        self._hit_rate_timestamp_history: Deque[float] = collections.deque(
-            5000 * [0.0], maxlen=5000
-        )
-        self._hit_rate_history: Deque[float] = collections.deque(
-            5000 * [0.0], maxlen=5000
-        )
-
         self._speed_report_interval: int = self._monitor_params.get_parameter(
             group="spi",
             parameter="speed_report_interval",
@@ -132,21 +113,29 @@ class SpiProcessing(pl_base.OmProcessing):
             required=True,
         )
 
-        self._data_broadcast_interval: int = self._monitor_params.get_parameter(
-            group="spi",
-            parameter="data_broadcast_interval",
-            parameter_type=int,
-            required=True,
-        )
-
-        self._data_broadcast_socket: zmq_monitor.ZmqDataBroadcaster = (
-            zmq_monitor.ZmqDataBroadcaster(
-                parameters=self._monitor_params.get_parameter_group(group="spi")
+        self._geometry: TypeDetector
+        self._geometry, _, __ = crystfel_geometry.load_crystfel_geometry(
+            filename=self._monitor_params.get_parameter(
+                group="spi",
+                parameter="geometry_file",
+                parameter_type=str,
+                required=True,
             )
         )
+        self._pixelmaps = crystfel_geometry.compute_pix_maps(geometry=self._geometry)
+        self._data_shape: Tuple[int, int] = self._pixelmaps["x"].shape
 
-        self._responding_socket: zmq_monitor.ZmqResponder = zmq_monitor.ZmqResponder(
-            parameters=self._monitor_params.get_parameter_group(group="spi")
+        self._data_type: Union[str, None] = self._monitor_params.get_parameter(
+            group="spi",
+            parameter="hdf5_file_data_type",
+            parameter_type=str,
+        )
+        self._file_writer: hdf5_writers.HDF5Writer = hdf5_writers.HDF5Writer(
+            parameters=self._monitor_params.get_parameter_group(group="spi"),
+            detector_data_shape=self._data_shape,
+            detector_data_type=self._data_type,
+            node_rank=node_rank,
+            geometry=self._geometry,
         )
 
         self._num_events: int = 0
@@ -198,10 +187,6 @@ class SpiProcessing(pl_base.OmProcessing):
             numpy.float_
         ] = self._correction.apply_correction(data=data["detector_data"])
 
-        corrected_detector_data = (
-                corrected_detector_data / data["beam_energy"] / 1000.0
-        )
-
         total_number_of_photons: int = corrected_detector_data.sum()
 
         frame_is_hit: bool = total_number_of_photons > self._threshold_for_hit
@@ -210,7 +195,9 @@ class SpiProcessing(pl_base.OmProcessing):
         processed_data["frame_is_hit"] = frame_is_hit
         processed_data["event_id"] = data["event_id"]
         processed_data["frame_id"] = data["frame_id"]
+        processed_data["detector_data"] = corrected_detector_data
         processed_data["data_shape"] = corrected_detector_data.shape
+        processed_data["lcls_extra"] = data["lcls_extra"]
 
         return (processed_data, node_rank)
 
@@ -247,34 +234,13 @@ class SpiProcessing(pl_base.OmProcessing):
         received_data: Dict[str, Any] = processed_data[0]
         self._num_events += 1
 
-        self._num_hits += 1
-        self._hit_rate_running_window.append(float(received_data["frame_is_hit"]))
-        avg_hit_rate = (
-            sum(self._hit_rate_running_window) / self._running_average_window_size
-        )
-        self._hit_rate_timestamp_history.append(received_data["timestamp"])
-        self._hit_rate_history.append(avg_hit_rate * 100.0)
+        if received_data["fame_is_hit"]:
+            data_to_write: Dict[str, Any] = {
+                "detector_data": received_data["detector_data"],
+                "lcls_extra": received_data["lcls_extra"],
+            }
 
-        omdata_message: Dict[str, Any] = {
-            "timestamp": received_data["timestamp"],
-            "hit_rate_timestamp_history": self._hit_rate_timestamp_history,
-            "hit_rate_history": self._hit_rate_history,
-        }
-
-        if self._num_events % self._data_broadcast_interval == 0:
-            self._data_broadcast_socket.send_data(
-                tag="omdata",
-                message=omdata_message,
-            )
-
-        if self._num_events % self._data_broadcast_interval == 0:
-            self._data_broadcast_socket.send_data(
-                tag="omdata",
-                message={
-                    "timestamp": received_data["timestamp"],
-                    "event_counter": self._num_events,
-                },
-            )
+            self._file_writer.write_frame(processed_data=data_to_write)
 
         if self._num_events % self._speed_report_interval == 0:
             now_time: float = time.time()
@@ -343,4 +309,5 @@ class SpiProcessing(pl_base.OmProcessing):
             f"Processing finished. OM has processed {self._num_events} events in "
             "total."
         )
+        self._file_writer.close()
         sys.stdout.flush()
