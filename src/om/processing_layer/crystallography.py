@@ -33,7 +33,7 @@ from om.algorithms import crystallography as cryst_algs
 from om.algorithms import generic as gen_algs
 from om.abcs import processing_layer as prol_abcs
 from om.utils import crystfel_geometry, exceptions, parameters, zmq_monitor
-from om.utils.crystfel_geometry import TypeDetector, TypePixelMaps
+from om.utils.crystfel_geometry import TypeDetector, TypePixelMaps, TypeLayoutInfo
 from om.utils.rich_console import console, get_current_timestamp
 
 try:
@@ -93,16 +93,17 @@ class CrystallographyProcessing(prol_abcs.OmProcessingBase):
             node_pool_size: The total number of nodes in the OM pool, including all the
                 processing nodes and the collecting node.
         """
-
+        geometry_filename: str = self._monitor_params.get_parameter(
+            group="crystallography",
+            parameter="geometry_file",
+            parameter_type=str,
+            required=True,
+        )
         self._pixelmaps: TypePixelMaps = (
-            crystfel_geometry.pixel_maps_from_geometry_file(
-                filename=self._monitor_params.get_parameter(
-                    group="crystallography",
-                    parameter="geometry_file",
-                    parameter_type=str,
-                    required=True,
-                )
-            )
+            crystfel_geometry.pixel_maps_from_geometry_file(filename=geometry_filename)
+        )
+        self._detector_layout_info: TypeLayoutInfo = (
+            crystfel_geometry.layout_info_from_geometry_file(filename=geometry_filename)
         )
 
         self._correction = gen_algs.Correction(
@@ -114,6 +115,7 @@ class CrystallographyProcessing(prol_abcs.OmProcessingBase):
                 parameters=self._monitor_params.get_parameter_group(
                     group="peakfinder8_peak_detection"
                 ),
+                peakfinder8_info=self._detector_layout_info,
                 radius_pixel_map=cast(NDArray[numpy.float_], self._pixelmaps["radius"]),
             )
         )
@@ -126,6 +128,7 @@ class CrystallographyProcessing(prol_abcs.OmProcessingBase):
         if binning:
             self._binning: Union[gen_algs.Binning, None] = gen_algs.Binning(
                 parameters=self._monitor_params.get_parameter_group(group="binning"),
+                layout_info=self._detector_layout_info,
             )
             binning_before_peakfinding: Union[
                 bool, None
@@ -244,16 +247,20 @@ class CrystallographyProcessing(prol_abcs.OmProcessingBase):
             required=True,
         )
 
+        geometry_filename = self._monitor_params.get_parameter(
+            group="crystallography",
+            parameter="geometry_file",
+            parameter_type=str,
+            required=True,
+        )
         geometry: TypeDetector
         self._geometry, _, __ = crystfel_geometry.load_crystfel_geometry(
-            filename=self._monitor_params.get_parameter(
-                group="crystallography",
-                parameter="geometry_file",
-                parameter_type=str,
-                required=True,
-            )
+            filename=geometry_filename
         )
         self._pixelmaps = crystfel_geometry.compute_pix_maps(geometry=self._geometry)
+        self._detector_layout_info = crystfel_geometry.layout_info_from_geometry_file(
+            filename=geometry_filename
+        )
 
         binning: Union[bool, None] = self._monitor_params.get_parameter(
             group="crystallography",
@@ -263,6 +270,7 @@ class CrystallographyProcessing(prol_abcs.OmProcessingBase):
         if binning:
             self._binning = gen_algs.Binning(
                 parameters=self._monitor_params.get_parameter_group(group="binning"),
+                layout_info=self._detector_layout_info,
             )
             self._pixelmaps = self._binning.bin_pixel_maps(pixel_maps=self._pixelmaps)
             self._data_shape = self._binning.get_binned_data_shape()

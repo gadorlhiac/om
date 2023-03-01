@@ -29,11 +29,10 @@ import h5py  # type:ignore
 import numpy
 from numpy.typing import DTypeLike, NDArray
 
-from om.algorithms import crystallography as cryst_algs
 from om.lib.binning_extension import bin_detector_data  # type: ignore
 from om.utils import exceptions
 from om.utils import parameters as param_utils
-from om.utils.crystfel_geometry import TypePixelMaps
+from om.utils.crystfel_geometry import TypePixelMaps, TypeLayoutInfo
 
 A = TypeVar("A", NDArray[numpy.float_], NDArray[numpy.int_])
 
@@ -461,6 +460,7 @@ class Binning:
     def __init__(
         self,
         *,
+        layout_info: TypeLayoutInfo,
         parameters: Dict[str, Any],
     ) -> None:
         """
@@ -476,30 +476,6 @@ class Binning:
             parameters: A set of OM configuration parameters collected together in a
                 parameter group. The parameter group must contain the following
                 entries:
-
-                * `detector_type`: The type of detector on which binning operation will
-                  be performed. The following detector types are currently supported:
-
-                    * `cspad`: The CSPAD detector used at the CXI beamline of the LCLS
-                      facility before 2020.
-
-                    * `pilatus`: The Pilatus detector used at the P11 beamline of the
-                      PETRA III facility.
-
-                    * `jungfrau1M`: The 1M version of the Jungfrau detector used at the
-                      PETRA III facility.
-
-                    * `jungfrau4M`: The 4M version of the Jungfrau detector used at the
-                      CXI beamline of the LCLS facility.
-
-                    * `epix10k2M`: The 2M version of the Epix10KA detector used at the
-                      MFX beamline of the LCLS facility.
-
-                    * `rayonix`: The Rayonix detector used at the MFX beamline of the
-                      LCLS facility.
-
-                    * `eiger16M`: The 16M version of Eiger2 detector used at the PETRA
-                      III facility.
 
                 * `bin_size`: The size of the binning area in pixels (A square of
                    pixels of size `bin_size` x `bin_size` in the original data frame
@@ -541,16 +517,7 @@ class Binning:
                   argument). Defaults to `MAXINT` if the input array is an array of
                   integers, otherwise defaults to `numpy.nan`.
         """
-        self._layout_info: cryst_algs.TypePeakfinder8Info = (
-            cryst_algs.get_peakfinder8_info(
-                detector_type=param_utils.get_parameter_from_parameter_group(
-                    group=parameters,
-                    parameter="detector_type",
-                    parameter_type=str,
-                    required=True,
-                )
-            )
-        )
+        self._layout_info: TypeLayoutInfo = layout_info
         self._bin_size: int = param_utils.get_parameter_from_parameter_group(
             group=parameters,
             parameter="bin_size",
@@ -565,7 +532,7 @@ class Binning:
             parameter_type=int,
         )
         if min_good_pix_count is None:
-            self._min_good_pix_count: int = self._bin_size**2
+            self._min_good_pix_count: int = self._bin_size ** 2
         else:
             self._min_good_pix_count = min_good_pix_count
         self._bad_pixel_value: int = param_utils.get_parameter_from_parameter_group(
@@ -694,7 +661,7 @@ class Binning:
         """
         return self._bin_size
 
-    def get_binned_layout_info(self) -> cryst_algs.TypePeakfinder8Info:
+    def get_binned_layout_info(self) -> TypeLayoutInfo:
         """
         Gets the data layout information for the binned data frame.
 
@@ -815,7 +782,7 @@ class Binning:
         if mask is None:
             return None
         else:
-            return self._bin_data_array(data=mask) // self._bin_size**2
+            return self._bin_data_array(data=mask) // self._bin_size ** 2
 
     def bin_pixel_maps(self, *, pixel_maps: TypePixelMaps) -> TypePixelMaps:
         """
@@ -837,19 +804,19 @@ class Binning:
 
         binned_pixel_maps: TypePixelMaps = {
             "x": self._bin_data_array(data=cast(NDArray[numpy.float_], pixel_maps["x"]))
-            / self._bin_size**3,
+            / self._bin_size ** 3,
             "y": self._bin_data_array(data=cast(NDArray[numpy.float_], pixel_maps["y"]))
-            / self._bin_size**3,
+            / self._bin_size ** 3,
             "z": self._bin_data_array(data=cast(NDArray[numpy.float_], pixel_maps["z"]))
-            / self._bin_size**3,
+            / self._bin_size ** 3,
             "radius": self._bin_data_array(
                 data=cast(NDArray[numpy.float_], pixel_maps["radius"])
             )
-            / self._bin_size**3,
+            / self._bin_size ** 3,
             "phi": self._bin_data_array(
                 data=cast(NDArray[numpy.float_], pixel_maps["phi"])
             )
-            / self._bin_size**2,
+            / self._bin_size ** 2,
         }
 
         return binned_pixel_maps

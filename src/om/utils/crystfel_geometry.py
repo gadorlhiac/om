@@ -328,6 +328,35 @@ class TypeDetector(TypedDict):
     furthest_in_ss: float
 
 
+class TypeLayoutInfo(TypedDict, total=True):
+    """
+    Detector layout information for the peakfinder8 algorithm.
+
+    This typed dictionary stores information about the internal data layout of a
+    detector data frame (number and size of ASICs, etc.). The information
+    is needed by the
+    [`Peakfinder8PeakDetection`][om.algorithms.crystallography.Peakfinder8PeakDetection]
+    algorithm, and is usually retrieved via the
+    [`get_peakfinder8_info`][om.algorithms.crystallography.get_peakfinder8_info]
+    function.
+
+    Attributes:
+
+        asic_nx: The fs size in pixels of each detector panel in the data frame.
+
+        asic_ny: The ss size in pixels of each detector panel in the data frame.
+
+        nasics_x: The number of detector panels along the fs axis of the data frame.
+
+        nasics_y: The number of detector panels along the ss axis of the data frame.
+    """
+
+    asic_nx: int
+    asic_ny: int
+    nasics_x: int
+    nasics_y: int
+
+
 class TypePixelMaps(TypedDict):
     """
     A dictionary storing a set of pixel maps,
@@ -1194,6 +1223,44 @@ def compute_visualization_pix_maps(*, geometry: TypeDetector) -> TypePixelMaps:
         "z": None,
         "radius": None,
         "phi": None,
+    }
+
+
+def layout_info_from_geometry_file(*, filename: str) -> TypeLayoutInfo:
+    """
+    Loads a CrystFEL geometry file and extracts detector layout information.
+
+    This function takes as input the absolute or relative path to a
+    [CrystFEL geometry file](http://www.desy.de/~twhite/crystfel/manual-crystfel_geometry.html),
+    and retrieves, for supported detector types, the data layout information
+    needed by the
+    [`Peakfinder8PeakDetection`][om.algorithms.crystallography.Peakfinder8PeakDetection]
+    algorithm.
+
+    Arguments:
+
+        filename: the absolute or relative path to a CrystFEL geometry file.
+
+    Returns:
+
+        A dictionary storing the data layout information.
+    """
+    geometry: TypeDetector
+    _: Any
+    __: Any
+    geometry, _, __ = load_crystfel_geometry(filename=filename)
+    panels: List[TypePanel] = list(geometry["panels"].values())
+    panel_fs_size: int = panels[0]["orig_max_fs"] - panels[0]["orig_min_fs"] + 1
+    panel_ss_size: int = panels[0]["orig_max_ss"] - panels[0]["orig_min_ss"] + 1
+
+    total_fs_size: int = max((panel["orig_max_fs"] for panel in panels))
+    total_ss_size: int = max((panel["orig_max_ss"] for panel in panels))
+
+    return {
+        "asic_nx": panel_fs_size,
+        "asic_ny": panel_ss_size,
+        "nasics_x": (total_fs_size + 1) // panel_fs_size,
+        "nasics_y": (total_ss_size + 1) // panel_ss_size,
     }
 
 
