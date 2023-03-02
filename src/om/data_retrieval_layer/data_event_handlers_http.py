@@ -39,7 +39,7 @@ except ImportError:
     from typing_extensions import Literal
 
 
-class Eiger16MHttpDataEventHandler(drl_abcs.OmDataEventHandlerBase):
+class EigerHttpDataEventHandler(drl_abcs.OmDataEventHandlerBase):
     """
     See documentation of the `__init__` function.
 

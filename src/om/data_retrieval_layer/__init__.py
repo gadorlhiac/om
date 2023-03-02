@@ -59,7 +59,7 @@ except ModuleNotFoundError:
 
 try:
     import PIL  # type: ignore  # noqa: F401
-    from .data_retrieval_http import Eiger16MHttpDataRetrieval
+    from .data_retrieval_http import EigerHttpDataRetrieval
 except ModuleNotFoundError:
     pass
 

@@ -34,7 +34,7 @@ from om.data_retrieval_layer import data_sources_generic as ds_generic
 from om.utils.parameters import MonitorParams
 
 
-class Eiger16MHttp(drl_abcs.OmDataSourceBase):
+class EigerHttp(drl_abcs.OmDataSourceBase):
     """
     See documentation of the `__init__` function.
     """
@@ -107,7 +107,7 @@ class Eiger16MHttp(drl_abcs.OmDataSourceBase):
         return numpy.asarray(image, dtype=int)
 
 
-class TimestampEiger16MHttp(drl_abcs.OmDataSourceBase):
+class TimestampEigerHttp(drl_abcs.OmDataSourceBase):
     """
     See documentation of the `__init__` function.
     """
@@ -185,7 +185,7 @@ class TimestampEiger16MHttp(drl_abcs.OmDataSourceBase):
         # )
 
 
-class EventIdEiger16MHttp(drl_abcs.OmDataSourceBase):
+class EventIdEigerHttp(drl_abcs.OmDataSourceBase):
     """
     See documentation of the `__init__` function.
     """

@@ -30,7 +30,7 @@ from om.data_retrieval_layer import data_sources_generic as ds_generic
 from om.utils import parameters
 
 
-class Eiger16MHttpDataRetrieval(drl_abcs.OmDataRetrievalBase):
+class EigerHttpDataRetrieval(drl_abcs.OmDataRetrievalBase):
     """
     See documentation of the `__init__` function.
 
@@ -39,19 +39,19 @@ class Eiger16MHttpDataRetrieval(drl_abcs.OmDataRetrievalBase):
 
     def __init__(self, *, monitor_parameters: parameters.MonitorParams, source: str):
         """
-        Data Retrieval from Eiger 16M http/REST interface.
+        Data Retrieval from Eiger http/REST interface.
 
         This method overrides the corresponding method of the base class: please also
         refer to the documentation of that class for more information.
 
-        This class implements OM's Data Retrieval Layer for an Eiger 16M detector using
+        This class implements OM's Data Retrieval Layer for an Eiger detector using
         detector http/REST interface.
 
         * This class considers an individual data event as equivalent to the content of
-          a tif file retrieved from the Eiger 16M http/REST interface, which stores
+          a tif file retrieved from the Eiger http/REST interface, which stores
           data related to a single detector frame.
 
-        * Since Eiger 16M http/REST monitor interface does not provide any detector
+        * Since Eiger http/REST monitor interface does not provide any detector
           distance or beam energy information, their values are retrieved from OM's
           configuration parameters (specifically, the `fallback_detector_distance_in_mm`
           and `fallback_beam_energy_in_eV` entries in the `data_retrieval_layer`
@@ -72,16 +72,16 @@ class Eiger16MHttpDataRetrieval(drl_abcs.OmDataRetrievalBase):
         """
 
         data_sources: Dict[str, drl_abcs.OmDataSourceBase] = {
-            "timestamp": ds_http.TimestampEiger16MHttp(
+            "timestamp": ds_http.TimestampEigerHttp(
                 data_source_name="timestamp", monitor_parameters=monitor_parameters
             ),
-            "event_id": ds_http.EventIdEiger16MHttp(
+            "event_id": ds_http.EventIdEigerHttp(
                 data_source_name="eventid", monitor_parameters=monitor_parameters
             ),
             "frame_id": ds_generic.FrameIdZero(
                 data_source_name="frameid", monitor_parameters=monitor_parameters
             ),
-            "detector_data": ds_http.Eiger16MHttp(
+            "detector_data": ds_http.EigerHttp(
                 data_source_name="detector", monitor_parameters=monitor_parameters
             ),
             "beam_energy": ds_generic.FloatEntryFromConfiguration(
@@ -95,7 +95,7 @@ class Eiger16MHttpDataRetrieval(drl_abcs.OmDataRetrievalBase):
         }
 
         self._data_event_handler: drl_abcs.OmDataEventHandlerBase = (
-            deh_http.Eiger16MHttpDataEventHandler(
+            deh_http.EigerHttpDataEventHandler(
                 source=source,
                 monitor_parameters=monitor_parameters,
                 data_sources=data_sources,
